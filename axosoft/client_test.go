@@ -199,6 +199,99 @@ func TestListItems_AllParams(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestListItems_AutoPaginates(t *testing.T) {
+	var requestCount int
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		page := r.URL.Query().Get("page")
+		var resp ItemsResponse
+		switch page {
+		case "1":
+			resp = ItemsResponse{
+				Data:     []Item{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}},
+				Metadata: Metadata{Page: 1, PageSize: 2, TotalCount: 3},
+			}
+		case "2":
+			resp = ItemsResponse{
+				Data:     []Item{{ID: 3, Name: "C"}},
+				Metadata: Metadata{Page: 2, PageSize: 2, TotalCount: 3},
+			}
+		default:
+			t.Errorf("unexpected page: %s", page)
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.ListItems(context.Background(), ListItemsOpts{Type: "feature"})
+	require.NoError(t, err)
+	assert.Len(t, result.Data, 3)
+	assert.Equal(t, "A", result.Data[0].Name)
+	assert.Equal(t, "C", result.Data[2].Name)
+	assert.Equal(t, 2, requestCount)
+}
+
+func TestListItems_ExplicitPage(t *testing.T) {
+	var requestCount int
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		assert.Equal(t, "2", r.URL.Query().Get("page"))
+		resp := ItemsResponse{
+			Data:     []Item{{ID: 5, Name: "Page2"}},
+			Metadata: Metadata{Page: 2, PageSize: 10, TotalCount: 15},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.ListItems(context.Background(), ListItemsOpts{Type: "task", Page: 2})
+	require.NoError(t, err)
+	assert.Len(t, result.Data, 1)
+	assert.Equal(t, "Page2", result.Data[0].Name)
+	assert.Equal(t, 1, requestCount, "explicit page should make exactly one request")
+}
+
+func TestListItems_StopsOnEmptyPage(t *testing.T) {
+	var requestCount int
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		page := r.URL.Query().Get("page")
+		var resp ItemsResponse
+		switch page {
+		case "1":
+			resp = ItemsResponse{
+				Data:     []Item{{ID: 1, Name: "Only"}},
+				Metadata: Metadata{Page: 1, PageSize: 100, TotalCount: 999},
+			}
+		case "2":
+			resp = ItemsResponse{
+				Data:     []Item{},
+				Metadata: Metadata{Page: 2, PageSize: 100, TotalCount: 999},
+			}
+		default:
+			t.Errorf("unexpected page: %s", page)
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.ListItems(context.Background(), ListItemsOpts{Type: "incident"})
+	require.NoError(t, err)
+	assert.Len(t, result.Data, 1)
+	assert.Equal(t, 2, requestCount)
+}
+
+func TestListItems_SafetyLimit(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		resp := ItemsResponse{
+			Data:     []Item{{ID: 1, Name: "Item"}},
+			Metadata: Metadata{Page: 1, PageSize: 1, TotalCount: 999999},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := client.ListItems(context.Background(), ListItemsOpts{Type: "defect"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "safety limit")
+}
+
 func TestAPIError_IncludesResponseBody(t *testing.T) {
 	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)

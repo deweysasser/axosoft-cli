@@ -2,8 +2,18 @@ package axosoft
 
 import "encoding/json"
 
-// ItemTypes is the canonical list of Axosoft work item types.
-var ItemTypes = []string{"feature", "task", "incident", "defect"}
+// itemTypePaths is the single source of truth for item type → API path mapping.
+var itemTypePaths = map[string]string{
+	"feature":  "features",
+	"task":     "tasks",
+	"incident": "incidents",
+	"defect":   "defects",
+}
+
+// ItemTypes returns the canonical list of Axosoft work item types.
+func ItemTypes() []string {
+	return []string{"feature", "task", "incident", "defect"}
+}
 
 // Item represents an Axosoft work item (feature, task, incident, or defect).
 type Item struct {
@@ -18,7 +28,7 @@ type Item struct {
 	Release      *NamedResource   `json:"release,omitempty"`
 	AssignedTo   *NamedResource   `json:"assigned_to,omitempty"`
 	Workflow     *NamedResource   `json:"workflow_step,omitempty"`
-	CustomFields map[string]interface{} `json:"custom_fields,omitempty"`
+	CustomFields map[string]any `json:"custom_fields,omitempty"`
 }
 
 // NamedResource is a common Axosoft pattern for referenced objects.
@@ -48,7 +58,8 @@ type Project struct {
 
 // ProjectsResponse is the API response for listing projects.
 type ProjectsResponse struct {
-	Data []Project `json:"data"`
+	Data     []Project `json:"data"`
+	Metadata Metadata  `json:"metadata,omitempty"`
 }
 
 // Release represents an Axosoft release.
@@ -61,7 +72,8 @@ type Release struct {
 
 // ReleasesResponse is the API response for listing releases.
 type ReleasesResponse struct {
-	Data []Release `json:"data"`
+	Data     []Release `json:"data"`
+	Metadata Metadata  `json:"metadata,omitempty"`
 }
 
 // WorkflowStep represents an available workflow transition.
