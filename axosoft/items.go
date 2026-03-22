@@ -17,24 +17,27 @@ type ListItemsOpts struct {
 	PageSize  int
 }
 
-func itemTypePath(itemType string) string {
+func itemTypePath(itemType string) (string, error) {
 	switch itemType {
 	case "feature":
-		return "features"
+		return "features", nil
 	case "task":
-		return "tasks"
+		return "tasks", nil
 	case "incident":
-		return "incidents"
+		return "incidents", nil
 	case "defect":
-		return "defects"
+		return "defects", nil
 	default:
-		return "features"
+		return "", fmt.Errorf("unknown item type %q", itemType)
 	}
 }
 
 // ListItems retrieves work items with optional filtering.
 func (c *Client) ListItems(ctx context.Context, opts ListItemsOpts) (*ItemsResponse, error) {
-	path := itemTypePath(opts.Type)
+	path, err := itemTypePath(opts.Type)
+	if err != nil {
+		return nil, err
+	}
 
 	params := url.Values{}
 	if opts.ProjectID > 0 {
@@ -62,7 +65,11 @@ func (c *Client) ListItems(ctx context.Context, opts ListItemsOpts) (*ItemsRespo
 
 // GetItem retrieves a single work item by ID and type.
 func (c *Client) GetItem(ctx context.Context, id int, itemType string) (*Item, error) {
-	path := fmt.Sprintf("%s/%d", itemTypePath(itemType), id)
+	typePath, err := itemTypePath(itemType)
+	if err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("%s/%d", typePath, id)
 
 	var result struct {
 		Data Item `json:"data"`

@@ -2,9 +2,7 @@ package program
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/deweysasser/axosoft-cli/axosoft"
 )
@@ -17,13 +15,13 @@ type ItemsCmd struct {
 	Type      string `help:"Item type (feature, task, incident, defect)" default:"feature" enum:"feature,task,incident,defect"`
 }
 
-func (cmd *ItemsCmd) Run(options *Options) error {
+func (cmd *ItemsCmd) Run(ctx context.Context, options *Options) error {
 	client, err := newClient(options)
 	if err != nil {
 		return err
 	}
 
-	result, err := client.ListItems(context.Background(), axosoft.ListItemsOpts{
+	result, err := client.ListItems(ctx, axosoft.ListItemsOpts{
 		ProjectID: cmd.ProjectID,
 		ReleaseID: cmd.ReleaseID,
 		Search:    cmd.Search,
@@ -33,9 +31,7 @@ func (cmd *ItemsCmd) Run(options *Options) error {
 		return fmt.Errorf("listing items: %w", err)
 	}
 
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(result)
+	return printJSON(result)
 }
 
 // ItemCmd retrieves a single work item by ID.
@@ -44,18 +40,16 @@ type ItemCmd struct {
 	Type string `help:"Item type (feature, task, incident, defect)" default:"feature" enum:"feature,task,incident,defect"`
 }
 
-func (cmd *ItemCmd) Run(options *Options) error {
+func (cmd *ItemCmd) Run(ctx context.Context, options *Options) error {
 	client, err := newClient(options)
 	if err != nil {
 		return err
 	}
 
-	item, err := client.GetItem(context.Background(), cmd.ID, cmd.Type)
+	item, err := client.GetItem(ctx, cmd.ID, cmd.Type)
 	if err != nil {
 		return fmt.Errorf("getting item: %w", err)
 	}
 
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(item)
+	return printJSON(item)
 }

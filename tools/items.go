@@ -2,15 +2,14 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/deweysasser/axosoft-cli/axosoft"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerItemTools(s *server.MCPServer, client *axosoft.Client) {
+func registerItemTools(s *server.MCPServer, client AxosoftClient) {
 	s.AddTool(
 		mcp.NewTool("list_items",
 			mcp.WithDescription("Search and filter Axosoft work items (features, tasks, incidents, defects)"),
@@ -19,7 +18,7 @@ func registerItemTools(s *server.MCPServer, client *axosoft.Client) {
 			mcp.WithString("search", mcp.Description("Search string to filter items")),
 			mcp.WithString("type",
 				mcp.Description("Item type to list"),
-				mcp.Enum("feature", "task", "incident", "defect"),
+				mcp.Enum(axosoft.ItemTypes...),
 			),
 			mcp.WithNumber("page", mcp.Description("Page number (1-based)")),
 			mcp.WithNumber("page_size", mcp.Description("Number of items per page")),
@@ -33,14 +32,14 @@ func registerItemTools(s *server.MCPServer, client *axosoft.Client) {
 			mcp.WithNumber("id", mcp.Required(), mcp.Description("Item ID")),
 			mcp.WithString("type", mcp.Required(),
 				mcp.Description("Item type"),
-				mcp.Enum("feature", "task", "incident", "defect"),
+				mcp.Enum(axosoft.ItemTypes...),
 			),
 		),
 		getItemHandler(client),
 	)
 }
 
-func listItemsHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func listItemsHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		opts := axosoft.ListItemsOpts{
 			ProjectID: int(request.GetFloat("project_id", 0)),
@@ -56,16 +55,11 @@ func listItemsHandler(client *axosoft.Client) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		data, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling result: %w", err)
-		}
-
-		return mcp.NewToolResultText(string(data)), nil
+		return jsonToolResult(result)
 	}
 }
 
-func getItemHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func getItemHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		id, err := request.RequireFloat("id")
 		if err != nil {
@@ -81,11 +75,6 @@ func getItemHandler(client *axosoft.Client) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		data, err := json.MarshalIndent(item, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling result: %w", err)
-		}
-
-		return mcp.NewToolResultText(string(data)), nil
+		return jsonToolResult(item)
 	}
 }

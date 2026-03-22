@@ -9,8 +9,8 @@ import (
 // LoginCmd handles authentication with Axosoft
 type LoginCmd struct {
 	Username     string `help:"Axosoft username (for password grant flow)" env:"AXOSOFT_USERNAME"`
-	Password     string `help:"Axosoft password (for password grant flow)" env:"AXOSOFT_PASSWORD"`
-	ClientSecret string `help:"Axosoft client secret (for password grant flow)" env:"AXOSOFT_CLIENT_SECRET"`
+	Password     string `help:"Axosoft password — prefer AXOSOFT_PASSWORD env var to avoid process listing exposure" env:"AXOSOFT_PASSWORD"`
+	ClientSecret string `help:"Axosoft client secret — prefer AXOSOFT_CLIENT_SECRET env var" env:"AXOSOFT_CLIENT_SECRET"`
 }
 
 func (cmd *LoginCmd) Run(options *Options) error {

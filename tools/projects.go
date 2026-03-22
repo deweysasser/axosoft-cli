@@ -2,15 +2,12 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
-	"github.com/deweysasser/axosoft-cli/axosoft"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerProjectTools(s *server.MCPServer, client *axosoft.Client) {
+func registerProjectTools(s *server.MCPServer, client AxosoftClient) {
 	s.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all Axosoft projects"),
@@ -27,23 +24,18 @@ func registerProjectTools(s *server.MCPServer, client *axosoft.Client) {
 	)
 }
 
-func listProjectsHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func listProjectsHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		projects, err := client.ListProjects(ctx)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		data, err := json.MarshalIndent(projects, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling result: %w", err)
-		}
-
-		return mcp.NewToolResultText(string(data)), nil
+		return jsonToolResult(projects)
 	}
 }
 
-func listReleasesHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func listReleasesHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		projectID := int(request.GetFloat("project_id", 0))
 
@@ -52,11 +44,6 @@ func listReleasesHandler(client *axosoft.Client) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		data, err := json.MarshalIndent(releases, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling result: %w", err)
-		}
-
-		return mcp.NewToolResultText(string(data)), nil
+		return jsonToolResult(releases)
 	}
 }

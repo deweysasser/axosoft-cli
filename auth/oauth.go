@@ -2,8 +2,11 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -15,15 +18,52 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	authHTTPTimeout = 15 * time.Second
+	maxErrBodyBytes = 4096
+)
+
+// authClient is a shared HTTP client with timeouts for OAuth token requests.
+var authClient = &http.Client{Timeout: authHTTPTimeout}
+
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
 	TokenType   string `json:"token_type"`
 }
 
+func (tr *tokenResponse) toToken(baseURL string) *Token {
+	token := &Token{
+		AccessToken: tr.AccessToken,
+		BaseURL:     baseURL,
+	}
+	if tr.ExpiresIn > 0 {
+		token.ExpiresAt = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
+	}
+	return token
+}
+
+func readLimitedErrBody(body io.Reader) string {
+	data, _ := io.ReadAll(io.LimitReader(body, maxErrBodyBytes))
+	return string(data)
+}
+
+func generateState() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating state: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
 // Authenticate runs the OAuth browser flow and returns a saved token.
 func Authenticate(baseURL, clientID string) error {
 	baseURL = strings.TrimRight(baseURL, "/")
+
+	state, err := generateState()
+	if err != nil {
+		return err
+	}
 
 	// Start local HTTP server on a random port
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -40,6 +80,12 @@ func Authenticate(baseURL, clientID string) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") != state {
+			http.Error(w, "invalid state", http.StatusBadRequest)
+			errCh <- fmt.Errorf("OAuth CSRF: state mismatch")
+			return
+		}
+
 		code := r.URL.Query().Get("code")
 		if code == "" {
 			errMsg := r.URL.Query().Get("error")
@@ -47,26 +93,37 @@ func Authenticate(baseURL, clientID string) error {
 				errMsg = "no code in callback"
 			}
 			errCh <- fmt.Errorf("OAuth error: %s", errMsg)
-			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>%s</p></body></html>", errMsg)
+			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>%s</p></body></html>", html.EscapeString(errMsg))
 			return
 		}
 		codeCh <- code
 		fmt.Fprint(w, "<html><body><h1>Authentication successful!</h1><p>You can close this window.</p></body></html>")
 	})
 
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
 	go func() {
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()
-	defer srv.Shutdown(context.Background())
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Warn().Err(err).Msg("Error shutting down callback server")
+		}
+	}()
 
 	// Build authorization URL and open browser
-	authURL := fmt.Sprintf("%s/auth?response_type=code&client_id=%s&redirect_uri=%s&scope=read%%20write",
+	authURL := fmt.Sprintf("%s/auth?response_type=code&client_id=%s&redirect_uri=%s&scope=read%%20write&state=%s",
 		baseURL,
 		url.QueryEscape(clientID),
 		url.QueryEscape(redirectURI),
+		url.QueryEscape(state),
 	)
 
 	log.Info().Str("url", authURL).Msg("Opening browser for authentication")
@@ -107,17 +164,16 @@ func PasswordAuth(baseURL, clientID, clientSecret, username, password string) er
 		"scope":         {"read write"},
 	}
 
-	tokenURL := baseURL + "/api/oauth2/token?" + params.Encode()
+	tokenURL := baseURL + "/api/oauth2/token"
 
-	resp, err := http.Get(tokenURL)
+	resp, err := authClient.PostForm(tokenURL, params)
 	if err != nil {
 		return fmt.Errorf("requesting token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("authentication failed (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("authentication failed (status %d): %s", resp.StatusCode, readLimitedErrBody(resp.Body))
 	}
 
 	var tokenResp tokenResponse
@@ -125,16 +181,8 @@ func PasswordAuth(baseURL, clientID, clientSecret, username, password string) er
 		return fmt.Errorf("parsing token response: %w", err)
 	}
 
-	token := &Token{
-		AccessToken: tokenResp.AccessToken,
-		BaseURL:     baseURL,
-	}
-	if tokenResp.ExpiresIn > 0 {
-		token.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-	}
-
 	log.Info().Msg("Password authentication successful")
-	return Save(token)
+	return Save(tokenResp.toToken(baseURL))
 }
 
 func exchangeCode(baseURL, clientID, code, redirectURI string) (*Token, error) {
@@ -147,14 +195,14 @@ func exchangeCode(baseURL, clientID, code, redirectURI string) (*Token, error) {
 		"redirect_uri": {redirectURI},
 	}
 
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := authClient.PostForm(tokenURL, data)
 	if err != nil {
 		return nil, fmt.Errorf("exchanging code for token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token exchange failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("token exchange failed (status %d): %s", resp.StatusCode, readLimitedErrBody(resp.Body))
 	}
 
 	var tokenResp tokenResponse
@@ -162,14 +210,6 @@ func exchangeCode(baseURL, clientID, code, redirectURI string) (*Token, error) {
 		return nil, fmt.Errorf("parsing token response: %w", err)
 	}
 
-	token := &Token{
-		AccessToken: tokenResp.AccessToken,
-		BaseURL:     baseURL,
-	}
-	if tokenResp.ExpiresIn > 0 {
-		token.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-	}
-
 	log.Info().Msg("Authentication successful")
-	return token, nil
+	return tokenResp.toToken(baseURL), nil
 }

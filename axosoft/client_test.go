@@ -122,15 +122,93 @@ func TestTransitionItem(t *testing.T) {
 		assert.Equal(t, "/api/v5/defects/5/workflow_steps", r.URL.Path)
 		assert.Equal(t, http.MethodPost, r.Method)
 
-		var body map[string]string
+		var body map[string]float64
 		json.NewDecoder(r.Body).Decode(&body)
-		assert.Equal(t, "200", body["step_id"])
+		assert.Equal(t, float64(200), body["step_id"])
 
 		w.WriteHeader(http.StatusOK)
 	})
 
 	err := client.TransitionItem(context.Background(), "defect", 5, 200)
 	require.NoError(t, err)
+}
+
+func TestListItems_InvalidType(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for invalid type")
+	})
+
+	_, err := client.ListItems(context.Background(), ListItemsOpts{Type: "sprint"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown item type "sprint"`)
+}
+
+func TestGetItem_InvalidType(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for invalid type")
+	})
+
+	_, err := client.GetItem(context.Background(), 1, "story")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown item type")
+}
+
+func TestGetWorkflowSteps_InvalidType(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for invalid type")
+	})
+
+	_, err := client.GetWorkflowSteps(context.Background(), "unknown", 1)
+	require.Error(t, err)
+}
+
+func TestTransitionItem_InvalidType(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for invalid type")
+	})
+
+	err := client.TransitionItem(context.Background(), "epic", 1, 5)
+	require.Error(t, err)
+}
+
+func TestListReleases_WithoutProjectFilter(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "", r.URL.Query().Get("project_id"), "project_id should not be set")
+		json.NewEncoder(w).Encode(ReleasesResponse{Data: []Release{}})
+	})
+
+	releases, err := client.ListReleases(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Empty(t, releases)
+}
+
+func TestListItems_AllParams(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		assert.Equal(t, "3", q.Get("project_id"))
+		assert.Equal(t, "7", q.Get("release_id"))
+		assert.Equal(t, "bug", q.Get("search_string"))
+		assert.Equal(t, "2", q.Get("page"))
+		assert.Equal(t, "50", q.Get("page_size"))
+		json.NewEncoder(w).Encode(ItemsResponse{})
+	})
+
+	_, err := client.ListItems(context.Background(), ListItemsOpts{
+		Type: "defect", ProjectID: 3, ReleaseID: 7, Search: "bug", Page: 2, PageSize: 50,
+	})
+	require.NoError(t, err)
+}
+
+func TestAPIError_IncludesResponseBody(t *testing.T) {
+	client, _ := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"access denied"}`))
+	})
+
+	_, err := client.ListProjects(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "403")
+	assert.Contains(t, err.Error(), "access denied")
 }
 
 func TestAPIError(t *testing.T) {

@@ -73,7 +73,7 @@ func (program *Options) initLogging() {
 	// Always log to stderr — stdout is reserved for MCP protocol in serve mode
 	var out io.Writer = os.Stderr
 
-	if os.Getenv("TERM") == "" && runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		out = colorable.NewColorableStderr()
 	}
 
@@ -92,10 +92,10 @@ func (program *Options) initLogging() {
 
 // isTerminal returns true if the file given points to a character device (i.e. a terminal)
 func isTerminal(file *os.File) bool {
-	if fileInfo, err := file.Stat(); err != nil {
-		log.Err(err).Msg("Error running stat")
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Error().Err(err).Msg("Error running stat")
 		return false
-	} else {
-		return (fileInfo.Mode() & os.ModeCharDevice) != 0
 	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }

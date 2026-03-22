@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/deweysasser/axosoft-cli/axosoft"
@@ -10,14 +9,14 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerWorkflowTools(s *server.MCPServer, client *axosoft.Client) {
+func registerWorkflowTools(s *server.MCPServer, client AxosoftClient) {
 	s.AddTool(
 		mcp.NewTool("list_workflow_steps",
 			mcp.WithDescription("List available workflow transitions for an Axosoft work item"),
 			mcp.WithNumber("id", mcp.Required(), mcp.Description("Item ID")),
 			mcp.WithString("type", mcp.Required(),
 				mcp.Description("Item type"),
-				mcp.Enum("feature", "task", "incident", "defect"),
+				mcp.Enum(axosoft.ItemTypes...),
 			),
 		),
 		listWorkflowStepsHandler(client),
@@ -29,7 +28,7 @@ func registerWorkflowTools(s *server.MCPServer, client *axosoft.Client) {
 			mcp.WithNumber("id", mcp.Required(), mcp.Description("Item ID")),
 			mcp.WithString("type", mcp.Required(),
 				mcp.Description("Item type"),
-				mcp.Enum("feature", "task", "incident", "defect"),
+				mcp.Enum(axosoft.ItemTypes...),
 			),
 			mcp.WithNumber("step_id", mcp.Required(), mcp.Description("Target workflow step ID")),
 		),
@@ -37,7 +36,7 @@ func registerWorkflowTools(s *server.MCPServer, client *axosoft.Client) {
 	)
 }
 
-func listWorkflowStepsHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func listWorkflowStepsHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		id, err := request.RequireFloat("id")
 		if err != nil {
@@ -53,16 +52,11 @@ func listWorkflowStepsHandler(client *axosoft.Client) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		data, err := json.MarshalIndent(steps, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling result: %w", err)
-		}
-
-		return mcp.NewToolResultText(string(data)), nil
+		return jsonToolResult(steps)
 	}
 }
 
-func transitionItemHandler(client *axosoft.Client) server.ToolHandlerFunc {
+func transitionItemHandler(client AxosoftClient) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		id, err := request.RequireFloat("id")
 		if err != nil {

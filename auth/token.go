@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -23,9 +24,8 @@ func tokenPath() (string, error) {
 	return filepath.Join(configDir, "axosoft-cli", "token.json"), nil
 }
 
-// Load reads a cached token for the given base URL.
-// Returns nil if no token is found or the token is for a different URL.
-func Load(baseURL string) (*Token, error) {
+// loadAll reads the token store from disk.
+func loadAll() (map[string]Token, error) {
 	path, err := tokenPath()
 	if err != nil {
 		return nil, err
@@ -39,20 +39,59 @@ func Load(baseURL string) (*Token, error) {
 		return nil, fmt.Errorf("reading token file: %w", err)
 	}
 
+	// Try new format: map of URL -> token
+	var store map[string]Token
+	if err := json.Unmarshal(data, &store); err == nil && len(store) > 0 {
+		return store, nil
+	}
+
+	// Fall back to legacy single-token format for migration
 	var token Token
 	if err := json.Unmarshal(data, &token); err != nil {
 		return nil, fmt.Errorf("parsing token file: %w", err)
 	}
+	if token.BaseURL != "" {
+		return map[string]Token{token.BaseURL: token}, nil
+	}
+	return nil, nil
+}
 
-	if token.BaseURL != baseURL {
+// Load reads a cached token for the given base URL.
+// Returns nil if no token is found for that URL.
+func Load(baseURL string) (*Token, error) {
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	store, err := loadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	token, ok := store[baseURL]
+	if !ok {
 		return nil, nil
+	}
+
+	if !token.ExpiresAt.IsZero() && time.Now().After(token.ExpiresAt) {
+		return nil, fmt.Errorf("token for %s has expired — run 'axosoft-cli login' again", baseURL)
 	}
 
 	return &token, nil
 }
 
-// Save writes the token to the config directory.
+// Save writes the token to the config directory, preserving tokens for other URLs.
 func Save(token *Token) error {
+	token.BaseURL = strings.TrimRight(token.BaseURL, "/")
+
+	store, err := loadAll()
+	if err != nil {
+		// If the file is corrupt, start fresh
+		store = nil
+	}
+	if store == nil {
+		store = make(map[string]Token)
+	}
+	store[token.BaseURL] = *token
+
 	path, err := tokenPath()
 	if err != nil {
 		return err
@@ -62,9 +101,9 @@ func Save(token *Token) error {
 		return fmt.Errorf("creating config dir: %w", err)
 	}
 
-	data, err := json.MarshalIndent(token, "", "  ")
+	data, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling token: %w", err)
+		return fmt.Errorf("marshaling token store: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0600); err != nil {

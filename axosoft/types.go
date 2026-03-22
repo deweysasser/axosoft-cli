@@ -2,6 +2,9 @@ package axosoft
 
 import "encoding/json"
 
+// ItemTypes is the canonical list of Axosoft work item types.
+var ItemTypes = []string{"feature", "task", "incident", "defect"}
+
 // Item represents an Axosoft work item (feature, task, incident, or defect).
 type Item struct {
 	ID           int              `json:"id"`
