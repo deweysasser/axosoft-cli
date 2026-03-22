@@ -17,17 +17,17 @@ func ItemTypes() []string {
 
 // Item represents an Axosoft work item (feature, task, incident, or defect).
 type Item struct {
-	ID           int              `json:"id"`
-	Name         string           `json:"name"`
-	ItemType     string           `json:"item_type,omitempty"`
-	Number       json.Number      `json:"number,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	Priority     *NamedResource   `json:"priority,omitempty"`
-	Status       *NamedResource   `json:"status,omitempty"`
-	Project      *NamedResource   `json:"project,omitempty"`
-	Release      *NamedResource   `json:"release,omitempty"`
-	AssignedTo   *NamedResource   `json:"assigned_to,omitempty"`
-	Workflow     *NamedResource   `json:"workflow_step,omitempty"`
+	ID           int            `json:"id"`
+	Name         string         `json:"name"`
+	ItemType     string         `json:"item_type,omitempty"`
+	Number       json.Number    `json:"number,omitempty"`
+	Description  string         `json:"description,omitempty"`
+	Priority     *NamedResource `json:"priority,omitempty"`
+	Status       *NamedResource `json:"status,omitempty"`
+	Project      *NamedResource `json:"project,omitempty"`
+	Release      *NamedResource `json:"release,omitempty"`
+	AssignedTo   *NamedResource `json:"assigned_to,omitempty"`
+	Workflow     *NamedResource `json:"workflow_step,omitempty"`
 	CustomFields map[string]any `json:"custom_fields,omitempty"`
 }
 
