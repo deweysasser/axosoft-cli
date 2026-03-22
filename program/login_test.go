@@ -34,6 +34,13 @@ func TestLoginCmd_PasswordFlow_MissingClientSecret(t *testing.T) {
 	assert.ErrorContains(t, err, "--client-secret is required")
 }
 
+func TestLoginCmd_InvalidURLScheme(t *testing.T) {
+	cmd := &LoginCmd{}
+	opts := &Options{BaseURL: "ftp://example.axosoft.com", ClientID: "client-id"}
+	err := cmd.Run(opts)
+	assert.ErrorContains(t, err, "invalid base URL")
+}
+
 func TestLoginCmd_BrowserFlow_MissingClientID(t *testing.T) {
 	cmd := &LoginCmd{}
 	opts := &Options{BaseURL: "https://example.axosoft.com", ClientID: ""}

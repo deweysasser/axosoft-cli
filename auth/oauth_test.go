@@ -29,7 +29,9 @@ func TestToToken_WithExpiry(t *testing.T) {
 func TestToToken_ZeroExpiresIn(t *testing.T) {
 	tr := &tokenResponse{AccessToken: "abc", ExpiresIn: 0}
 	token := tr.toToken("https://example.axosoft.com")
-	assert.True(t, token.ExpiresAt.IsZero())
+	assert.Equal(t, "abc", token.AccessToken)
+	assert.Equal(t, "https://example.axosoft.com", token.BaseURL)
+	assert.True(t, token.ExpiresAt.IsZero(), "zero ExpiresIn means token never expires")
 }
 
 // --- readLimitedErrBody ---
@@ -54,6 +56,7 @@ func TestGenerateState_UniqueEachCall(t *testing.T) {
 	require.NoError(t, err2)
 	assert.NotEqual(t, s1, s2)
 	assert.Len(t, s1, 32) // 16 bytes hex-encoded
+	assert.Len(t, s2, 32)
 }
 
 // --- exchangeCode ---

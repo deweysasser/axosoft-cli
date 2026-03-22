@@ -126,7 +126,7 @@ func Authenticate(baseURL, clientID string) error {
 		url.QueryEscape(state),
 	)
 
-	log.Info().Str("url", authURL).Msg("Opening browser for authentication")
+	log.Info().Str("base_url", baseURL).Msg("Opening browser for authentication")
 	if err := browser.OpenURL(authURL); err != nil {
 		log.Warn().Err(err).Msg("Could not open browser automatically")
 		fmt.Printf("Please open this URL in your browser:\n%s\n", authURL)

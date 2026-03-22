@@ -124,6 +124,7 @@ func TestGetItemHandler_MissingType(t *testing.T) {
 	result, err := handler(context.Background(), callTool(map[string]any{"id": float64(1)}))
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(result), "type")
 }
 
 func TestGetItemHandler_ClientError(t *testing.T) {
@@ -232,4 +233,13 @@ func TestListReleasesHandler_NoFilter(t *testing.T) {
 	result, err := handler(context.Background(), callTool(nil))
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
+}
+
+func TestListReleasesHandler_Error(t *testing.T) {
+	client := &mockClient{err: errors.New("server unavailable")}
+	handler := listReleasesHandler(client)
+	result, err := handler(context.Background(), callTool(nil))
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(result), "server unavailable")
 }

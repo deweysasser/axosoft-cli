@@ -14,8 +14,8 @@ type LoginCmd struct {
 }
 
 func (cmd *LoginCmd) Run(options *Options) error {
-	if options.BaseURL == "" {
-		return fmt.Errorf("--base-url or AXOSOFT_URL is required")
+	if err := validateBaseURL(options.BaseURL); err != nil {
+		return err
 	}
 
 	// Use password grant if username is provided

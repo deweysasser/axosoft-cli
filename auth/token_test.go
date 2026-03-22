@@ -122,6 +122,22 @@ func TestSavePreservesOtherURLs(t *testing.T) {
 	assert.Equal(t, "tok-b", loaded.AccessToken)
 }
 
+func TestSave_CorruptFileStartsFresh(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	dir := filepath.Join(tmpDir, "axosoft-cli")
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "token.json"), []byte("{{corrupt"), 0600))
+
+	err := Save(&Token{AccessToken: "new", BaseURL: "https://example.axosoft.com"})
+	require.NoError(t, err)
+
+	loaded, err := Load("https://example.axosoft.com")
+	require.NoError(t, err)
+	assert.Equal(t, "new", loaded.AccessToken)
+}
+
 func TestLegacyMigration_NoBaseURL(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)

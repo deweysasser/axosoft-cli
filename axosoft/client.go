@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-const maxResponseBytes = 10 * 1024 * 1024 // 10 MiB
+const (
+	maxResponseBytes = 10 * 1024 * 1024 // 10 MiB
+	maxErrBodyBytes  = 4096             // 4 KiB cap for error messages
+)
 
 // Client is an HTTP client for the Axosoft API.
 type Client struct {
@@ -86,7 +89,11 @@ func (c *Client) do(req *http.Request, result any) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+		errBody := respBody
+		if len(errBody) > maxErrBodyBytes {
+			errBody = errBody[:maxErrBodyBytes]
+		}
+		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(errBody))
 	}
 
 	if result != nil {
