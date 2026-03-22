@@ -8,7 +8,7 @@ import (
 	"github.com/zenizh/go-capturer"
 )
 
-func TestOptions_Run(t *testing.T) {
+func TestOptions_Version(t *testing.T) {
 	var program Options
 
 	exitValue := -1
@@ -18,14 +18,26 @@ func TestOptions_Run(t *testing.T) {
 	defer func() { exitFunc = os.Exit }()
 
 	out := capturer.CaptureStdout(func() {
-
-		_, err := program.Parse([]string{"--version"})
-
+		_, err := program.Parse([]string{"--version", "serve"})
 		assert.NoError(t, err)
-
-		// version output is done as part of parsing, so we don't need to run the program
 	})
 
-	assert.Equal(t, exitValue, 0)
+	assert.Equal(t, 0, exitValue)
 	assert.Equal(t, "unknown\n", out)
+}
+
+func TestOptions_ParseServe(t *testing.T) {
+	var program Options
+
+	ctx, err := program.Parse([]string{"serve"})
+	assert.NoError(t, err)
+	assert.Equal(t, "serve", ctx.Command())
+}
+
+func TestOptions_ParseLogin(t *testing.T) {
+	var program Options
+
+	ctx, err := program.Parse([]string{"login"})
+	assert.NoError(t, err)
+	assert.Equal(t, "login", ctx.Command())
 }

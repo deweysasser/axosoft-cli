@@ -1,4 +1,4 @@
-# golang-program
+# axosoft-cli
 
 A base for utility software written in golang
 
