@@ -38,16 +38,8 @@ go mod tidy   # after dependency changes
 - `BaseURL` and `ClientID` via env vars (`AXOSOFT_URL`, `AXOSOFT_CLIENT_ID`) or flags
 
 ## Configuration
-```json
-{
-  "axosoft": {
-    "type": "stdio",
-    "command": "/path/to/axosoft-cli",
-    "args": ["serve"],
-    "env": {
-      "AXOSOFT_URL": "https://example.axosoft.com",
-      "AXOSOFT_CLIENT_ID": "your-client-id"
-    }
-  }
-}
+```bash
+claude mcp add axosoft -- axosoft-cli serve \
+  -e AXOSOFT_URL=https://example.axosoft.com \
+  -e AXOSOFT_CLIENT_ID=your-client-id
 ```

@@ -20,9 +20,23 @@ make
 
 Before using any commands, you must authenticate with your Axosoft instance. Tokens are cached to `~/.config/axosoft-cli/token.json`.
 
+### Creating an OAuth Client ID
+
+You need an OAuth client ID from your Axosoft instance before authenticating. To create one:
+
+1. Log in to your Axosoft account with **admin privileges**
+2. Go to **Tools > System Options > Axosoft API Settings**
+3. Enable the API if it isn't already
+4. Click **Manage API Keys** and create a new application
+5. Copy the **Client ID** (and **Client Secret** if using the password grant flow)
+
+For the browser OAuth flow, set the redirect URI to `http://localhost` (the CLI picks a random port at runtime).
+
+See the [Axosoft API Authentication docs](https://developer.axosoft.com/authentication.html) for more details. Access tokens expire after 30 days — re-run `axosoft-cli login` to refresh.
+
 ### Browser OAuth Flow
 
-Opens a browser for interactive login. Requires an OAuth client ID (create one in Axosoft under Tools > System Options > Axosoft API Settings).
+Opens a browser for interactive login.
 
 ```bash
 export AXOSOFT_URL=https://example.axosoft.com
@@ -117,22 +131,20 @@ The server communicates over stdio using the MCP protocol.
 
 ### Claude Code Configuration
 
-Add to your Claude Code MCP settings (`.claude/settings.json` or `~/.claude/settings.json`):
+Install as an MCP server using the Claude Code CLI:
 
-```json
-{
-  "mcpServers": {
-    "axosoft": {
-      "type": "stdio",
-      "command": "/path/to/axosoft-cli",
-      "args": ["serve"],
-      "env": {
-        "AXOSOFT_URL": "https://example.axosoft.com",
-        "AXOSOFT_CLIENT_ID": "your-client-id"
-      }
-    }
-  }
-}
+```bash
+claude mcp add axosoft -- axosoft-cli serve \
+  -e AXOSOFT_URL=https://example.axosoft.com \
+  -e AXOSOFT_CLIENT_ID=your-client-id
+```
+
+This adds the server to your user-level config (`~/.claude/settings.json`). To scope it to a project instead, add `-s project`:
+
+```bash
+claude mcp add axosoft -s project -- axosoft-cli serve \
+  -e AXOSOFT_URL=https://example.axosoft.com \
+  -e AXOSOFT_CLIENT_ID=your-client-id
 ```
 
 You must run `axosoft-cli login` before starting the MCP server to cache a token.
