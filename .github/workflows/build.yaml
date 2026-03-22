@@ -4,6 +4,10 @@ on:
       - "**"
 
 name: Build
+
+permissions:
+  packages: write
+
 env:
   REPO: ${{github.repository}}
 
